@@ -1,8 +1,6 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-uint256 constant SECONDS_IN_MINUTE = 360;
-
 contract Staking {
     ERC20 private _stakingToken;
     ERC20 private _rewardToken;
@@ -27,16 +25,20 @@ contract Staking {
         _timestamps[msg.sender] = block.timestamp;
     }
 
-    function unstake() external {
-        if (block.timestamp - _timestamps[msg.sender] > _unstakeTime*SECONDS_IN_MINUTE) { 
+    function unstake() external returns(bool) {
+        if (block.timestamp - _timestamps[msg.sender] > _unstakeTime) { 
             uint256 amount = _balances[msg.sender];
+            _balances[msg.sender] = 0;
             _stakingToken.transfer(msg.sender, amount);
+
+            return true;
         }
-        
+
+        return false;
     }
 
     function claim() external returns (bool) {
-        if (block.timestamp - _timestamps[msg.sender] > _rewardTime*SECONDS_IN_MINUTE) {
+        if (block.timestamp - _timestamps[msg.sender] > _rewardTime) {
             uint stakedBalance = _balances[msg.sender];
             uint amount = (stakedBalance/100)*_rewardPercentage;
             _rewardToken.transfer(msg.sender, amount);
@@ -44,6 +46,10 @@ contract Staking {
         }
 
         return _rewards[msg.sender];
+    }
+
+    function getBalance(address stakeHolder) external view returns(uint256) {
+        return _balances[stakeHolder];
     }
 }
 
