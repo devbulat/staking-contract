@@ -1,9 +1,11 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
+import "./ERC20Mock.sol";
 
 contract Staking {
-    ERC20 private _stakingToken;
-    ERC20 private _rewardToken;
+    address private _owner;
+    IERC20Mock private _stakingToken;
+    IERC20Mock private _rewardToken;
     uint256 public _rewardPercentage;
     uint256 public _rewardTime;
     uint256 public _unstakeTime;
@@ -12,70 +14,68 @@ contract Staking {
     mapping(address => uint256) private _timestamps;
 
     constructor(address stakingToken, address rewardToken, uint256 rewardPercentage, uint256 rewardTime, uint unstakeTime) {
-        _stakingToken = ERC20(stakingToken);
-        _rewardToken = ERC20(rewardToken);
+        _owner = msg.sender;
+        _stakingToken = IERC20Mock(stakingToken);
+        _rewardToken = IERC20Mock(rewardToken);
         _rewardPercentage = rewardPercentage;
         _rewardTime = rewardTime;
         _unstakeTime = unstakeTime;
     }
 
     function stake(uint256 amount) external {
+        require(amount != 0, "Can't stake zero amount");
+
         _stakingToken.transferFrom(msg.sender, address(this), amount);
         _balances[msg.sender] += amount;
         _timestamps[msg.sender] = block.timestamp;
     }
 
-    function unstake() external returns(bool) {
-        if (block.timestamp - _timestamps[msg.sender] > _unstakeTime) { 
-            uint256 amount = _balances[msg.sender];
-            _balances[msg.sender] = 0;
-            _stakingToken.transfer(msg.sender, amount);
+    function unstake() external {
+        require(block.timestamp - _timestamps[msg.sender] > _unstakeTime, "Not ready for unstake");
+        require(_balances[msg.sender] != 0, "You have nothing for unstake");
 
-            return true;
-        }
-
-        return false;
+        uint256 amount = _balances[msg.sender];
+        _balances[msg.sender] = 0;
+        _stakingToken.transfer(msg.sender, amount);
     }
 
-    function claim() external returns (bool) {
-        if (block.timestamp - _timestamps[msg.sender] > _rewardTime) {
-            uint stakedBalance = _balances[msg.sender];
-            uint amount = (stakedBalance/100)*_rewardPercentage;
-            _rewardToken.transfer(msg.sender, amount);
-            _rewards[msg.sender] = true;
-        }
+    function claim() external {
+        require(block.timestamp - _timestamps[msg.sender] > _unstakeTime, "Not ready for claim");
+        require(!_rewards[msg.sender], "Already claimed");
 
-        return _rewards[msg.sender];
+        uint stakedBalance = _balances[msg.sender];
+        uint amount = (stakedBalance/100)*_rewardPercentage;
+        _rewardToken.transfer(msg.sender, amount);
+        _rewards[msg.sender] = true;
     }
 
     function getBalance(address stakeHolder) external view returns(uint256) {
+        require(stakeHolder != address(0), "Can't get balance from zero address");
+        
         return _balances[stakeHolder];
     }
-}
 
-interface ERC20 {
+    function getRewardTime() external view returns(uint256) {
+        require(_owner == msg.sender, "You are not owner");
 
-    function transfer(address recipient, uint256 amount ) external; 
+        return _rewardTime;
+    }
 
-    function increaseAllowance(address spender, uint256 amount ) external;
+    function setRewardTime(uint256 time) external {
+        require(_owner == msg.sender, "You are not owner");
 
-    function decreaseAllowance(address spender, uint256 amount ) external;
+        _rewardTime = time;
+    }
 
-    function allowance(address owner, address spender) external view returns (uint256);
+    function getRewardPercentage() external view returns(uint256) {
+        require(_owner == msg.sender, "You are not owner");
 
-    function approve(address spender, uint256 amount ) external;
-    
-    function transferFrom(address sender, address recipient, uint256 amount ) external;
+        return _rewardPercentage;
+    }
 
-    function name() external view returns (string memory);
+    function setRewardPersentage(uint256 percentage) external {
+        require(_owner == msg.sender, "You are not owner");
 
-    function symbol() external view returns (string memory);
-
-    function decimals() external view returns (uint256);
-
-    function balanceOf(address user) external view returns (uint256);
-
-    function totalSupply() external view returns (uint256);
-
-    event Transfer(address indexed from, address indexed to, uint value);
+        _rewardPercentage = percentage;
+    }
 }
